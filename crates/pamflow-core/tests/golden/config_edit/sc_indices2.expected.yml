@@ -1,0 +1,9 @@
+soundscape:
+  enabled: true
+  window_mins: null
+  acoustic_indices:  # which indices
+    M:
+  day_hours: [6, 17]
+
+occupancy:
+  run_id: "x"

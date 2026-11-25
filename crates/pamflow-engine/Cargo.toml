@@ -1,0 +1,9 @@
+[package]
+name = "pamflow-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pamflow-core = { path = "../pamflow-core" }
+serde_json.workspace = true

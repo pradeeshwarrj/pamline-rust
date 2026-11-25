@@ -1,0 +1,36 @@
+{
+ "input": "cfg.yml",
+ "expected": "cfg_scalars.expected.yml",
+ "changes": [
+  {
+   "section": "birdnet",
+   "key": "workers",
+   "value": 8
+  },
+  {
+   "section": "birdnet",
+   "key": "chunk_size",
+   "value": null
+  },
+  {
+   "section": "paths",
+   "key": "audio_standardized",
+   "value": "E:\\GNI\\Standard \"set\""
+  },
+  {
+   "section": "report",
+   "key": "title",
+   "value": "Nilgiris PAM"
+  },
+  {
+   "section": "birdnet",
+   "key": "overlap_s",
+   "value": 1.5
+  },
+  {
+   "section": "birdnet",
+   "key": "min_confidence",
+   "value": 0.30000000000000004
+  }
+ ]
+}

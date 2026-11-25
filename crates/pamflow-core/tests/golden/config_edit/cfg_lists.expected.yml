@@ -1,0 +1,28 @@
+paths:
+  project_root: "."
+  audio_standardized: "data/standardized"
+
+filenames:
+  # G0059_YYYYMMDD_HHMMSS.flac ; timestamps are local time
+  pattern: "^(?<grid>G\\d{4})_(?<date>\\d{8})_(?<time>\\d{6})(_chunk\\d+)?\\.(flac|wav)$"
+  timezone: "Asia/Kolkata"
+
+birdnet:
+  run_id: "run01"
+  min_confidence: 0.3
+  workers: null             # parallel worker processes, each with its own model copy.
+                            # null = half of the physical cores.
+  chunk_size: 100           # files per batch
+
+deployments:
+  columns: ["a", "b"]
+processing:
+  species_whitelist: []
+  min_confidence: 0.5
+report:
+  title: "PAM # Report"   # a hash inside quotes is not a comment
+
+validation:
+  bands: [0.4, 0.6, 1.0]
+  spec_px: [800, 300]
+  show_confidence: true

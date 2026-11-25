@@ -1,0 +1,18 @@
+{
+ "input": "cfg.yml",
+ "expected": "cfg_one_item.expected.yml",
+ "changes": [
+  {
+   "section": "processing",
+   "key": "species_whitelist",
+   "value": [
+    "Gracula religiosa"
+   ]
+  },
+  {
+   "section": "newsec",
+   "key": "x",
+   "value": 0.000123
+  }
+ ]
+}

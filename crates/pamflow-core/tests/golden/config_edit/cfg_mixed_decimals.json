@@ -1,0 +1,15 @@
+{
+ "input": "cfg.yml",
+ "expected": "cfg_mixed_decimals.expected.yml",
+ "changes": [
+  {
+   "section": "validation",
+   "key": "bands",
+   "value": [
+    0.3,
+    0.55,
+    1
+   ]
+  }
+ ]
+}

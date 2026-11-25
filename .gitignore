@@ -1,0 +1,5 @@
+target/
+**/target/
+spikes/birdnet/data/
+spikes/birdnet/tflite/
+*.log

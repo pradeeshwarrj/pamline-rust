@@ -1,0 +1,13 @@
+soundscape:
+  enabled: true
+  window_mins: 10
+  acoustic_indices:   # which indices
+    ACI:
+    Bio:
+      flim: [1500, 9000]   # my range
+    NDSI:
+      anthro_range: [1000, 2000]
+  day_hours: [6, 17]
+
+occupancy:
+  run_id: "x"

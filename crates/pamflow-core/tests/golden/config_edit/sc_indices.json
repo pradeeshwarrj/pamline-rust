@@ -1,0 +1,15 @@
+{
+ "input": "sc.yml",
+ "expected": "sc_indices.expected.yml",
+ "changes": [
+  {
+   "section": "soundscape",
+   "key": "acoustic_indices",
+   "value": [
+    "NDSI",
+    "Bio",
+    "ADI"
+   ]
+  }
+ ]
+}

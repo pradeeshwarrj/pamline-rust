@@ -1,0 +1,87 @@
+{
+ "input": "template.yml",
+ "expected": "template_more.expected.yml",
+ "changes": [
+  {
+   "section": "processing",
+   "key": "species_whitelist",
+   "value": [
+    "Psittacula columboides"
+   ]
+  },
+  {
+   "section": "processing",
+   "key": "species_blacklist",
+   "value": [
+    "Gallus gallus",
+    "Pavo cristatus"
+   ]
+  },
+  {
+   "section": "processing",
+   "key": "date_range",
+   "value": [
+    "2026-03-26",
+    "2026-04-20"
+   ]
+  },
+  {
+   "section": "processing",
+   "key": "species_thresholds_file",
+   "value": "data/thr.csv"
+  },
+  {
+   "section": "processing",
+   "key": "species_season_file",
+   "value": null
+  },
+  {
+   "section": "birdnet",
+   "key": "top_k",
+   "value": 5
+  },
+  {
+   "section": "birdnet",
+   "key": "device",
+   "value": "GPU"
+  },
+  {
+   "section": "deployments",
+   "key": "columns",
+   "value": [
+    "deployment_id",
+    "grid",
+    "deploy_date"
+   ]
+  },
+  {
+   "section": "validation",
+   "key": "bands",
+   "value": [
+    0.4,
+    0.6,
+    1
+   ]
+  },
+  {
+   "section": "validation",
+   "key": "spec_px",
+   "value": [
+    800,
+    300
+   ]
+  },
+  {
+   "section": "recall",
+   "key": "hours",
+   "value": []
+  },
+  {
+   "section": "report",
+   "key": "formats",
+   "value": [
+    "html"
+   ]
+  }
+ ]
+}

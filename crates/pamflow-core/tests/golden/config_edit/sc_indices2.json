@@ -1,0 +1,18 @@
+{
+ "input": "sc.yml",
+ "expected": "sc_indices2.expected.yml",
+ "changes": [
+  {
+   "section": "soundscape",
+   "key": "acoustic_indices",
+   "value": [
+    "M"
+   ]
+  },
+  {
+   "section": "soundscape",
+   "key": "window_mins",
+   "value": null
+  }
+ ]
+}

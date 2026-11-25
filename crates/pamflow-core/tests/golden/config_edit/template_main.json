@@ -1,0 +1,38 @@
+{
+ "input": "template.yml",
+ "expected": "template_main.expected.yml",
+ "changes": [
+  {
+   "section": "birdnet",
+   "key": "workers",
+   "value": 6
+  },
+  {
+   "section": "birdnet",
+   "key": "min_confidence",
+   "value": 0.35
+  },
+  {
+   "section": "processing",
+   "key": "species_whitelist",
+   "value": [
+    "Gracula religiosa"
+   ]
+  },
+  {
+   "section": "occupancy",
+   "key": "occasion_length_days",
+   "value": 7
+  },
+  {
+   "section": "report",
+   "key": "author",
+   "value": "Pradeeshwar"
+  },
+  {
+   "section": "validation",
+   "key": "reviewer",
+   "value": "RJ"
+  }
+ ]
+}

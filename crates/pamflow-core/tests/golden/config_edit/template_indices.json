@@ -1,0 +1,24 @@
+{
+ "input": "template.yml",
+ "expected": "template_indices.expected.yml",
+ "changes": [
+  {
+   "section": "soundscape",
+   "key": "acoustic_indices",
+   "value": [
+    "ACI",
+    "NDSI"
+   ]
+  },
+  {
+   "section": "soundscape",
+   "key": "batch_size",
+   "value": 20
+  },
+  {
+   "section": "paths",
+   "key": "project_root",
+   "value": "D:/PAM_GNI"
+  }
+ ]
+}

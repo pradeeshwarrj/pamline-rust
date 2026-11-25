@@ -1,0 +1,140 @@
+paths:
+  project_root: "D:/PAM_GNI"  # relative to the folder holding this file; ".." = the folder above config/
+  audio_raw: "data/raw"
+  audio_standardized: "data/standardized"
+  audio_isolated: "data/isolated"
+  filtered: "data/filtered"
+  metadata: "metadata"
+  deployment_sheet: "metadata/deployments.csv"
+  detections: "data/detections"
+  validation: "data/validation"
+  occupancy: "data/occupancy"
+  outputs: "outputs"
+  logs: "logs"
+  reports: "reports"
+
+filenames:
+  # G0059_YYYYMMDD_HHMMSS.flac ; timestamps are local time
+  # Supports both standardized flac and wav formats: G0059_YYYYMMDD_HHMMSS.flac
+  pattern: "^(?<grid>G\\d{4})_(?<date>\\d{8})_(?<time>\\d{6})(_chunk\\d+)?\\.(flac|wav)$"
+  timezone: "Asia/Kolkata"
+
+standardization:
+  enabled: true
+  dry_run: false
+  prefix: ""
+  target_format: "flac"            # "flac" or "wav"
+  target_hz: 48000                 # Output sample rate (Hz)
+  channels: 1                      # 1 = Mono, 2 = Stereo
+  min_duration_s: 60               # Files shorter than this go to isolated/memos
+  organize_folders: "grid"         # "grid" (standardized/G0059/), "grid_date", "date", "preserve", "flat"
+  rename_strategy: "auto"          # "auto" (parses timestamp) or "keep"
+  isolate_non_audio: true          # Moves non-audio files to isolated/non_audio/
+  isolate_short: true              # Moves voice memos to isolated/memos/
+
+deployments:
+  has_header: true
+  grid_prefix: "G"
+  date_format: "%d-%m-%Y"
+  time_format: "%H:%M"
+  default_recovery_time: "23:59"
+  columns: [deployment_id, recorder, grid, habitat, deployer, latitude, longitude,
+            deploy_date, deploy_time, retrieve_date, retrieve_time]
+
+audio:
+  sample_rate: 48000
+  bit_depth: 16
+  min_duration_s: 1800
+
+qc:
+  gap_tolerance_s: 120
+  header_chunk_size: 5000
+
+filter:
+  enabled: true
+  highpass_hz: 250
+  order: 8
+  ffmpeg_path: "ffmpeg"
+  workers: 4
+  chunk_size: 200
+  duration_tolerance_s: 0.5
+
+birdnet:
+  run_id: "run01"
+  input: "standardized"                     # "standardized" or "filtered"
+  model_dir: "models/custom_classifier"   # relative paths are resolved against project_root
+  classifier_name: "CustomClassifier"     # files: <name>.tflite and <name>_Labels.txt
+  labels_file: null         # set only if your labels file has a different name
+  min_confidence: 0.3
+  overlap_s: 0              # 0 to 3 seconds
+  use_bandpass: true        # BirdNET's own band limits; the 250 Hz high-pass is done by FFmpeg
+  bandpass_fmin: 0
+  bandpass_fmax: 15000
+  workers: null             # parallel worker processes, each with its own model copy.
+                            # null = half of the physical cores.
+                            # Keep it below your physical core count so the computer stays usable
+  chunk_size: 100           # files per batch; progress is saved after each batch
+  # BirdNET runs in pamflow's Python environment: create it once with pam_birdnet_setup("inference")
+  top_k: null               # max species kept per 3 s segment; null = every species above min_confidence
+  py_batch_size: 1          # segments per inference call (1 is best for the CPU TFLite backend)
+  n_producers: 1            # threads that decode audio
+  sigmoid_sensitivity: 1.0  # same meaning as the Analyzer's sensitivity (1.0 = default)
+  device: "CPU"             # TensorFlow has no GPU support on native Windows
+  python_env: null          # folder of the Python environment; null = pamflow's default
+
+processing:
+  min_confidence: 0.5
+  species_thresholds_file: null   # CSV with columns: scientific_name, threshold (pam_species_thresholds(cfg, write = TRUE) makes one)
+  species_whitelist: []           # names matched against scientific name, common name or species
+  species_blacklist: []
+  date_range: []                  # e.g. ["2026-03-26", "2026-04-20"] ; empty = no limit
+  species_season_file: null       # CSV with columns: scientific_name, month_start, month_end (1-12)
+  drop_outside_deployment: true
+  max_overrun_s: 3
+  merge_gap_s: 3                  # windows closer together than this many seconds merge into one event (3 = consecutive windows)
+
+soundscape:
+  enabled: true
+  window_mins: 10                # Compute indices per 10-min window (null = whole file)
+  low_stop_hz: 500               # high-pass filter frequency
+  acoustic_indices:
+    ACI:                         # Acoustic Complexity Index
+    NDSI:                        # Normalized Difference Soundscape Index
+      anthro_range: [1000, 2000]
+      bio_range: [2000, 11000]
+  day_hours: [6, 17]
+  batch_size: 20
+
+validation:
+  bands: [0.3, 0.4, 0.5, 0.7, 1.0]   # confidence band edges (an event's confidence = its best window)
+  n_per_cell: 25                     # events per species x band in each stratified round
+  rare_max_events: 30                # species with at most this many events count as rare
+  rare_n: 50                         # events taken per rare species
+  clip_pad_s: 3                      # seconds of context before and after each event
+  spec_max_hz: 12000                 # top of the spectrogram frequency axis
+  spec_px: [900, 360]                # spectrogram picture size (width, height)
+  show_confidence: false             # hide the model's score while reviewing
+  reviewer: ""
+  seed: 1
+
+recall:
+  segment_s: 60
+  n_segments: 40            # segments per round
+  hours: []                 # e.g. [4, 18] = only segments starting 04:00-17:59 local time
+  audio: "standardized"     # audio the annotator hears: "standardized" or "filtered"
+  spec_px: [1600, 400]
+  spec_max_hz: 12000
+  seed: 1
+  reviewer: ""
+
+occupancy:
+  occasion_length_days: 1       # days per occasion; also the default time bin of the count histories and ecological products
+  min_effort_hours: 2           # recording hours an occasion needs (in total) to count as surveyed
+  min_detections: 10            # species with fewer detections get no occupancy history
+  run_id: "pilot_unfiltered"
+
+report:
+  title: "PAM Workflow Report"
+  author: ""
+  formats: ["html", "excel", "pdf"]
+
