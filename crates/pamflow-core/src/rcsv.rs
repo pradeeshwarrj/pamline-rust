@@ -47,6 +47,8 @@ impl Cell {
     pub fn render(&self) -> String {
         match self {
             Cell::Na => String::new(),
+            // fwrite quotes an empty string, to tell it from NA (written as nothing)
+            Cell::Str(s) if s.is_empty() => "\"\"".into(),
             Cell::Str(s) => quote_auto(s),
             Cell::Int(i) => i.to_string(),
             Cell::Num(x) => crate::rnum::fwrite_num(*x),

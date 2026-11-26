@@ -161,3 +161,6 @@ dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 .arrow { color: var(--muted); width: 1%; }
 select.input { appearance: auto; }
+
+/* the Filter screen */
+.label { font-weight: var(--weight-semibold); }

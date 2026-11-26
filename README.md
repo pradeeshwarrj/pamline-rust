@@ -5,7 +5,7 @@ the app uses, so the app no longer ships R and Python. Plan: the handoff documen
 "rebuilding pamflow Desktop entirely in Rust" (2026-11-25).
 
 The reference for every comparison is the app as shipped: pamflow 0.6.0 as
-installed in pamflow Desktop 0.2.1's runtime (`runtime/.pixi/envs/default`).
+installed in pamflow Desktop 0.2.1's runtime (`runtime/.pixi/envs/default`). The comparison scripts run R the way the app does (isolated from any R library of your own, which may hold another pamflow version: see `r_env()` in `tools/compare/config_save.py`) and give the engine the runtime's PATH.
 
 ## Decisions (2026-11-25)
 
@@ -31,6 +31,7 @@ and prints the same `@@PAM` events, with the same exit codes. Jobs ported:
 | `project_create`, `example_project`, `diagnostics` | `tools/compare/project_jobs.py` |
 | `scan`, `scan_results` | `tools/compare/scan.py` (see `tools/compare/SCAN_NOTES.md`) |
 | `std_state`, `std_plan`, `standardize` | `tools/compare/standardize.py` (5 setting variants and 4 failure cases; converted files decode identically, see below) |
+| `filter_info`, `filter` | `tools/compare/filter.py` (example, edge-case and real-recording projects, 3 failure cases; 23 filtered files byte for byte) |
 
 Each comparison runs both engines on their own copies of the same projects
 (pamflow's example project, hand-made edge cases, and the real 4,700-recording
@@ -52,6 +53,7 @@ Known differences from R, on purpose:
 - Two saves in the same second: R refuses the second one (the backup name exists); Rust numbers the second backup (`..._2.bak`).
 - A number setting holding text (`min_confidence: "abc"`) is refused; R compares it as text and lets it through.
 - `diagnostics` lists the Rust engine's versions instead of R and Python's.
+- Sample-rate conversion in `standardize` can differ from R's by 1 in the last bit of some samples (R's audio package and the ffmpeg program round differently); same-rate conversions are identical.
 - `standardize` converts audio with the `ffmpeg` program (on the PATH) where R uses its built-in libav. The converted audio is sample-identical on the test files, but the files differ in bytes (the encoder version tag differs: `Lavf61` in R's package, whatever ffmpeg is installed). Copied files are byte-identical. As in R's pamflow, mp3/m4a/ogg/wma/aiff are listed as unreadable (so isolated as corrupt): only WAV and FLAC headers are read.
 
 ## The app (`app/`)
@@ -59,7 +61,7 @@ Known differences from R, on purpose:
 Leptos (Rust compiled to WebAssembly) inside a Tauri 2 shell, ported from pamflow-desktop:
 
 - `app/src-tauri`: the shell (job runner, engine launcher, dialogs, close prompt, first-launch setup). Jobs in the routing table run in `pamflow-engine`, the rest in the R bridge, which is still read from the `pamflow-desktop` folder next to this repository (or `PAMFLOW_DESKTOP`).
-- `app/ui`: the screens. Done: the shell around them (sidebar with navigation), Project, Standardize and Scan, plus the live job panel (progress, Stop, finished files) that Filter, Detect and Soundscape will reuse. Text comes from `en.json`, the look from the old app's tokens.
+- `app/ui`: the screens. Done: the shell around them (sidebar with navigation), Project, Standardize, Scan and Filter, plus the live job panel (progress, Stop, finished files) that Filter, Detect and Soundscape will reuse. Text comes from `en.json`, the look from the old app's tokens.
 
 Tools: `rustup target add wasm32-unknown-unknown`, `cargo install trunk tauri-cli --locked`. Run it (build the engine first, `cargo build`):
 

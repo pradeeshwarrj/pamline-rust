@@ -8,6 +8,7 @@ pub mod config;
 pub mod config_edit;
 pub mod config_save;
 pub mod events;
+pub mod filter;
 pub mod inspect;
 pub mod project;
 pub mod project_jobs;

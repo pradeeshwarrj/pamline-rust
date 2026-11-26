@@ -25,7 +25,13 @@ ENGINE = Path(__file__).resolve().parents[2] / "target" / "debug" / "pamflow-eng
 
 
 def r_env():
+    """The environment the app gives R: the bundled runtime only (src-tauri runtime.rs
+    `apply_env`). Without this R also sees the user's own library, which may hold
+    another pamflow version (the app never does)."""
     env = dict(os.environ)
+    for var in ("R_HOME", "R_LIBS_SITE", "PYTHONHOME", "PYTHONPATH", "RETICULATE_PYTHON"):
+        env.pop(var, None)
+    env.update({"R_LIBS_USER": "NULL", "R_LIBS": "", "R_PROFILE_USER": "NULL", "R_ENVIRON_USER": "NULL"})
     extra = [ENV_DIR / "Library" / "mingw-w64" / "bin", ENV_DIR / "Library" / "bin", ENV_DIR / "Scripts",
              ENV_DIR / "lib" / "R" / "bin" / "x64"]
     env["PATH"] = os.pathsep.join(str(p) for p in extra) + os.pathsep + env.get("PATH", "")
@@ -45,7 +51,8 @@ def run(engine, job_file):
         cmd = [str(RSCRIPT), str(DESKTOP / "bridge" / "run_job.R"), str(job_file)]
         p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=r_env(), timeout=600)
     else:
-        p = subprocess.run([str(ENGINE), str(job_file)], capture_output=True, text=True, encoding="utf-8", timeout=600)
+        # the app starts the engine with the runtime's folders first in PATH (so its ffmpeg is used)
+        p = subprocess.run([str(ENGINE), str(job_file)], capture_output=True, text=True, encoding="utf-8", env=r_env(), timeout=600)
     return p.returncode, events(p.stdout), p.stderr
 
 

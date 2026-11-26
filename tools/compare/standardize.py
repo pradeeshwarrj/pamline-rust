@@ -125,6 +125,18 @@ def md5_audio(p: Path):
     return r.stdout.strip() or "unreadable"
 
 
+def pcm_max_diff(a: Path, b: Path):
+    """Largest sample difference between two decoded files (None if not comparable)."""
+    import numpy as np
+    out = []
+    for p in (a, b):
+        r = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(p), "-f", "s16le", "-"], capture_output=True)
+        out.append(np.frombuffer(r.stdout, dtype="<i2").astype(np.int32))
+    if len(out[0]) != len(out[1]) or not len(out[0]):
+        return None
+    return int(np.abs(out[0] - out[1]).max())
+
+
 def diff_json(a, b, path=""):
     if isinstance(a, dict) and isinstance(b, dict):
         out = []
@@ -214,7 +226,7 @@ def compare_variant(name, std, base: Path):
         ta, tb = tree(rr, sub), tree(rs, sub)
         if ta != tb:
             problems.append(f"{sub}: only R {sorted(set(ta) - set(tb))[:5]}; only Rust {sorted(set(tb) - set(ta))[:5]}")
-        same_bytes = diff_bytes = 0
+        same_bytes = diff_bytes = resampled = 0
         for rel in sorted(set(ta) & set(tb)):
             if rel.endswith("standardization_log.csv"):
                 continue
@@ -223,8 +235,13 @@ def compare_variant(name, std, base: Path):
                 same_bytes += 1
             elif rel.endswith((".flac", ".wav")) and md5_audio(a) == md5_audio(b):
                 diff_bytes += 1
+            elif rel.endswith((".flac", ".wav")) and (pcm_max_diff(a, b) or 99) <= 1:
+                # sample-rate conversion: R's audio package and the ffmpeg program round differently by 1
+                resampled += 1
             else:
                 problems.append(f"{rel}: audio differs ({md5_audio(a)[:12]} / {md5_audio(b)[:12]})")
+        if resampled:
+            notes.append(f"{sub}: {resampled} down-sampled file(s) differ by at most 1 in the last bit of some samples")
         if diff_bytes:
             notes.append(f"{sub}: {same_bytes} files byte-identical, {diff_bytes} converted files decode identically but differ in bytes")
     print(f"{'ok  ' if not problems else 'DIFF'} {name}")

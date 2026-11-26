@@ -45,6 +45,9 @@ pub struct Store {
     pub std_log: RwSignal<Vec<String>>,
     /// The Standardize run itself.
     pub std_job: LongJob,
+    /// Filter step: the engine's "filter_info" settings, and the run itself.
+    pub filter_info: RwSignal<Option<Value>>,
+    pub filter_job: LongJob,
     /// What the user opened: a project folder (or a settings file, until it is read).
     pub folder: RwSignal<String>,
     /// The engine's "project" event for the open project.
@@ -74,7 +77,11 @@ impl Store {
                 std_state.set(Some(e.clone()));
             }
         });
+        let filter_job = LongJob::new();
+        filter_job.listen(|_| {});
         Store {
+            filter_info: RwSignal::new(None),
+            filter_job,
             std_state,
             std_job,
             std_checking: RwSignal::new(false),
@@ -151,6 +158,7 @@ impl Store {
         self.scan_status.set("idle");
         self.scan_summary.set(None);
         self.std_state.set(None);
+        self.filter_info.set(None);
     }
 }
 
@@ -418,4 +426,32 @@ pub fn check_raw(store: Store) {
 /// The real run (copies and converts; raw files are never changed).
 pub fn start_standardize(store: Store) {
     store.std_job.start(json!({ "job": "standardize", "project": store.folder.get_untracked() }));
+}
+
+// ---- Filter -------------------------------------------------------------------------------------------
+
+/// The Filter step's settings and progress (`filter_info`).
+pub fn load_filter_info(store: Store) {
+    let folder = store.folder.get_untracked();
+    if folder.is_empty() {
+        return;
+    }
+    spawn_local(async move {
+        if let Ok(events) = run_job(json!({ "job": "filter_info", "project": folder }), |_| {}).await {
+            if let Some(info) = events.iter().find(|e| e["type"] == "filter_info") {
+                store.filter_info.set(Some(info["settings"].clone()));
+            }
+        }
+    });
+}
+
+/// Filter the recordings with `workers` at a time, in batches of a few files per
+/// worker so progress and the resume point update often.
+pub fn start_filter(store: Store, workers: i64) {
+    let chunk = (workers * 4).clamp(4, 200);
+    store.filter_job.start(json!({
+        "job": "filter",
+        "project": store.folder.get_untracked(),
+        "filter": { "workers": workers, "chunk_size": chunk }
+    }));
 }

@@ -19,7 +19,7 @@ use std::process::ExitCode;
 
 /// Jobs the Rust engine runs. Everything else still goes to the R bridge.
 const PORTED: &[&str] =
-    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results", "std_state", "std_plan", "standardize"];
+    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results", "std_state", "std_plan", "standardize", "filter_info", "filter"];
 
 /// Scan the recordings (`job_scan`): stage 01 with progress as log events,
 /// then the summary.
@@ -115,6 +115,75 @@ fn job_standardize(cfg: &Config, job: &Value, dry_run: bool) -> Outcome {
         o.extra.insert("n_failed".into(), json!(failed));
         o.extra.insert("minutes".into(), json!((t0.elapsed().as_secs_f64() / 60.0 * 100.0).round() / 100.0));
     }
+    o
+}
+
+/// High-pass filter the recordings that passed the scan (`job_filter`); progress like Detect.
+fn job_filter(cfg: &Config) -> Outcome {
+    use pamflow_core::{filter, scan, stage_log};
+    let paths = &cfg.data["paths"];
+    let logs = paths["logs"].as_str().map(std::path::PathBuf::from);
+    let sink = || -> stage_log::Sink<'static> {
+        Box::new(|level, stage, text| emit("log", json!({ "level": level, "stage": stage, "text": text })))
+    };
+    let master = std::path::Path::new(paths["metadata"].as_str().unwrap_or("")).join("audio_master.csv");
+    if !master.is_file() {
+        // no scan yet: scan first, as the R bridge does
+        emit("stage", json!({ "stage": "scan", "label": "Scanning recordings" }));
+        let mut log = stage_log::StageLog::new(scan::STAGE, logs.clone(), sink());
+        let run = stage_log::run_stage(&mut log, |log| scan::scan_audio(cfg, false, log));
+        if run.result.is_none() {
+            let mut msg = "Scanning the recordings failed; see the log.".to_string();
+            if let Some(e) = &run.last_error {
+                msg = msg.replace("see the log.", &format!("pamflow said: {e}"));
+            }
+            return Outcome::failed(msg);
+        }
+    }
+    if !cfg.data["filter"]["enabled"].as_bool().unwrap_or(false) {
+        return Outcome::failed("Filtering is turned off in config.yml (filter: enabled: false).");
+    }
+    let run_dir = paths["filtered"].as_str().unwrap_or("").to_string();
+    emit(
+        "stage",
+        json!({ "stage": "filter", "label": "Filtering recordings", "run_dir": run_dir,
+                "already_done": filter::checkpoint_count(&filter::checkpoint_path(cfg)) }),
+    );
+    let mut log = stage_log::StageLog::new(filter::STAGE, logs, sink());
+    let (mut done, mut failed) = (0usize, 0usize);
+    let mut progress = |p: filter::Progress| match p {
+        filter::Progress::Total(n) => emit("total", json!({ "n": n })),
+        filter::Progress::Batch { batch, batches, ok, failed: f, rows } => {
+            done += ok;
+            failed += f;
+            emit(
+                "files",
+                json!({ "batch": batch, "batches": batches, "done": done, "failed": failed, "detections": 0, "rows": rows }),
+            );
+        }
+    };
+    let run = stage_log::run_stage(&mut log, |log| filter::filter_audio(cfg, log, &mut progress));
+    let Some(Some(out)) = run.result else {
+        let mut msg = "Filtering failed; see the log.".to_string();
+        if let Some(e) = &run.last_error {
+            msg = msg.replace("see the log.", &format!("pamflow said: {e}"));
+        }
+        // R's failure result also carries the folder, null counts and the time
+        let mut o = Outcome::failed(msg);
+        o.extra.insert("run_dir".into(), json!(run_dir));
+        for k in ["n_pending", "n_done", "n_failed"] {
+            o.extra.insert(k.into(), Value::Null);
+        }
+        o.extra.insert("minutes".into(), json!((run.minutes * 100.0).round() / 100.0));
+        return o;
+    };
+    let mut o = Outcome::ok("");
+    o.extra.insert("message".into(), json!(""));
+    o.extra.insert("run_dir".into(), json!(run_dir));
+    o.extra.insert("n_pending".into(), json!(out.n_pending));
+    o.extra.insert("n_done".into(), json!(out.n_ok));
+    o.extra.insert("n_failed".into(), json!(out.n_failed));
+    o.extra.insert("minutes".into(), json!((run.minutes * 100.0).round() / 100.0));
     o
 }
 
@@ -335,6 +404,11 @@ fn main() -> ExitCode {
             emit("std_state", pamflow_core::standardize::state_event(&cfg, &s));
             Outcome::ok("")
         }
+        "filter_info" => {
+            emit("filter_info", json!({ "settings": pamflow_core::filter::filter_settings(&cfg) }));
+            Outcome::ok("")
+        }
+        "filter" => job_filter(&cfg),
         "std_plan" => job_standardize(&cfg, &job, true),
         "standardize" => job_standardize(&cfg, &job, false),
         "scan_results" => {
