@@ -7,8 +7,10 @@ the app uses, so the app no longer ships R and Python. Plan: the handoff documen
 ## Decisions (2026-11-25)
 
 - The interface is rewritten in Rust too (framework not chosen yet).
-- BirdNET: spike first (pure-Rust runtime vs. the TensorFlow Lite C library) on
-  the global model and one custom classifier, compared with Python birdnet 0.2.16.
+- BirdNET: the spike is done ([spikes/birdnet/REPORT.md](spikes/birdnet/REPORT.md)).
+  The TensorFlow Lite C library (a 4.3 MB DLL) run from Rust matches Python's
+  scores to 7.4e-5 on the global model and a custom classifier, and is faster.
+  The pure-Rust runtime tract cannot load the models.
 - Same project files as the R version: existing projects and half-finished runs
   keep working.
 - Acoustic indices are implemented from the published papers; the GPL R packages

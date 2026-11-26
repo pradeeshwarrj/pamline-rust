@@ -1,0 +1,18 @@
+TFLite 2.19.0
+model-fp32: loaded in 63 ms
+model-fp32 a_48k_mono.wav: max |logit diff| 7.439e-5; 54.6 ms/segment (Python 62.4)
+model-fp32 b_32k_mono.wav: max |logit diff| 3.242e-5; 51.5 ms/segment (Python 79.7)
+model-fp32 c_48k_stereo.wav: max |logit diff| 3.815e-5; 54.6 ms/segment (Python 79.5)
+model-fp32 d_48k_10.5s.wav: max |logit diff| 4.387e-5; 50.9 ms/segment (Python 84.2)
+model-fp32: worst |logit diff| 7.439e-5
+model-fp32: batch of 8, 1 thread: 177.4 ms/segment
+model-fp32: batch of 8, 4 threads: 53.6 ms/segment
+TFLite 2.19.0
+BirdNet_v3: loaded in 78 ms
+BirdNet_v3 a_48k_mono.wav: max |logit diff| 1.025e-5; 52.3 ms/segment (Python 75.5)
+BirdNet_v3 b_32k_mono.wav: max |logit diff| 6.676e-6; 53.7 ms/segment (Python 74.4)
+BirdNet_v3 c_48k_stereo.wav: max |logit diff| 7.868e-6; 53.9 ms/segment (Python 72.7)
+BirdNet_v3 d_48k_10.5s.wav: max |logit diff| 5.960e-6; 55.1 ms/segment (Python 75.5)
+BirdNet_v3: worst |logit diff| 1.025e-5
+BirdNet_v3: batch of 8, 1 thread: 59.0 ms/segment
+BirdNet_v3: batch of 8, 4 threads: 51.3 ms/segment

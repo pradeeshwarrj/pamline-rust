@@ -19,6 +19,12 @@ if ! grep -q "^class Tensor;$" "$MB"; then
 fi
 # TENSORFLOW_SOURCE_DIR: without it TFLite's CMake downloads its own pinned
 # TensorFlow (v2.19.0 in the 2.21.0 source), a second copy of another version.
+# Windows DLL exports: lite/CMakeLists.txt adds TFL_STATIC_LIBRARY_BUILD to
+# everything when BUILD_SHARED_LIBS is off, which empties TFL_CAPI_EXPORT, so
+# tensorflowlite_c.dll exports nothing. Skip it when the C library is a DLL.
+LC="$DIR/src/tensorflow/lite/CMakeLists.txt"
+sed -i 's/^if (NOT BUILD_SHARED_LIBS)$/if (NOT BUILD_SHARED_LIBS AND NOT TFLITE_C_BUILD_SHARED_LIBS)/' "$LC"
+grep -q "NOT BUILD_SHARED_LIBS AND NOT TFLITE_C_BUILD_SHARED_LIBS" "$LC"
 cmake -S "$DIR/src/tensorflow/lite/c" -B "$DIR/build" -A x64 \
   -DTENSORFLOW_SOURCE_DIR="$(cd "$DIR/src" && pwd -W)" \
   -DCMAKE_BUILD_TYPE=Release -DTFLITE_ENABLE_XNNPACK=ON
