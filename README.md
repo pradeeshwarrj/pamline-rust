@@ -30,6 +30,7 @@ and prints the same `@@PAM` events, with the same exit codes. Jobs ported:
 | `config_save`, `config_save_as` | `tools/compare/config_save.py` |
 | `project_create`, `example_project`, `diagnostics` | `tools/compare/project_jobs.py` |
 | `scan`, `scan_results` | `tools/compare/scan.py` (see `tools/compare/SCAN_NOTES.md`) |
+| `std_state`, `std_plan`, `standardize` | `tools/compare/standardize.py` (5 setting variants and 4 failure cases; converted files decode identically, see below) |
 
 Each comparison runs both engines on their own copies of the same projects
 (pamflow's example project, hand-made edge cases, and the real 4,700-recording
@@ -42,7 +43,7 @@ python tools/compare/scan.py <pamflow-desktop> <scratch folder> D:/PAM_GNI/confi
 
 `pamflow-core` modules: `config_edit` (comment-keeping editor), `config` (reader:
 template merge, paths, checks), `config_save`, `project`, `project_jobs`,
-`inspect`, `audio_files` (listing, file-name parsing), `audio_header` (WAV like
+`inspect`, `audio_files` (listing, file-name parsing), `standardize` (Stage 00), `audio_header` (WAV like
 tuneR, FLAC STREAMINFO), `scan`, `rcsv` (CSV like data.table fwrite/fread),
 `rtime` (dates like R's strptime), `collate` (R's sort order), `stage_log`
 (pamflow's stage log), `events`.
@@ -51,6 +52,7 @@ Known differences from R, on purpose:
 - Two saves in the same second: R refuses the second one (the backup name exists); Rust numbers the second backup (`..._2.bak`).
 - A number setting holding text (`min_confidence: "abc"`) is refused; R compares it as text and lets it through.
 - `diagnostics` lists the Rust engine's versions instead of R and Python's.
+- `standardize` converts audio with the `ffmpeg` program (on the PATH) where R uses its built-in libav. The converted audio is sample-identical on the test files, but the files differ in bytes (the encoder version tag differs: `Lavf61` in R's package, whatever ffmpeg is installed). Copied files are byte-identical. As in R's pamflow, mp3/m4a/ogg/wma/aiff are listed as unreadable (so isolated as corrupt): only WAV and FLAC headers are read.
 
 ## Tests
 

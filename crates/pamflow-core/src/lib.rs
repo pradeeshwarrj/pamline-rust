@@ -16,3 +16,4 @@ pub mod rnum;
 pub mod rtime;
 pub mod scan;
 pub mod stage_log;
+pub mod standardize;

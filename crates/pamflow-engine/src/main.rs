@@ -19,7 +19,7 @@ use std::process::ExitCode;
 
 /// Jobs the Rust engine runs. Everything else still goes to the R bridge.
 const PORTED: &[&str] =
-    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results"];
+    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results", "std_state", "std_plan", "standardize"];
 
 /// Scan the recordings (`job_scan`): stage 01 with progress as log events,
 /// then the summary.
@@ -43,6 +43,78 @@ fn job_scan(cfg: &Config, job: &Value) -> Outcome {
     emit("scan", scan::scan_event(cfg));
     let mut o = Outcome::ok("");
     o.extra.insert("minutes".into(), json!((run.minutes * 100.0).round() / 100.0));
+    o
+}
+
+/// The Stage 00 settings of this run, or why it cannot run.
+fn std_settings(cfg: &Config, job: &Value) -> Result<pamflow_core::standardize::Settings, String> {
+    use pamflow_core::standardize as sd;
+    let s = sd::Settings::from(cfg, &job["std"]);
+    let probs = sd::problems(&s);
+    if probs.is_empty() {
+        Ok(s)
+    } else {
+        Err(probs.join(" "))
+    }
+}
+
+/// `std_plan` (dry run) and `standardize` (the run): Stage 00 with progress.
+fn job_standardize(cfg: &Config, job: &Value, dry_run: bool) -> Outcome {
+    use pamflow_core::{rcsv, stage_log, standardize as sd};
+    let s = match std_settings(cfg, job) {
+        Ok(s) => s,
+        Err(m) => return Outcome::failed(m),
+    };
+    let t0 = std::time::Instant::now();
+    let (_all, audio) = sd::count_audio(&s.raw_dir);
+    let to_write = if dry_run {
+        None
+    } else {
+        // the plan from an earlier "check" says how many files will be written
+        let n = rcsv::Table::read(&sd::plan_path(cfg))
+            .and_then(|t| t.column("action").map(|c| c.iter().filter(|a| **a != "SKIPPED").count()))
+            .unwrap_or(_all);
+        Some(n)
+    };
+    emit("stage", json!({ "stage": "std_inspect", "label": "Reading raw files" }));
+    let mut counters = sd::Counters::new(Box::new(emit));
+    counters.reset("read", audio);
+    counters.flush(true);
+    let sink: stage_log::Sink =
+        Box::new(|level, stage, text| emit("log", json!({ "level": level, "stage": stage, "text": text })));
+    let mut log = stage_log::StageLog::new(sd::STAGE, None, sink);
+    let mut progress = sd::RunProgress { c: &mut counters, write_total: to_write, out_dir: s.standardized_dir.clone() };
+    let result = sd::standardize(cfg, &s, dry_run, &mut log, &mut progress);
+    progress.finish();
+    let (done, failed) = (counters.done, counters.failed);
+    let rows = match result {
+        Ok(r) => r,
+        Err(e) => {
+            let what = if dry_run { "Checking the raw files failed" } else { "Standardizing failed" };
+            return Outcome::failed(format!("{what}; pamflow said: {}", log.last_error.clone().unwrap_or(e)));
+        }
+    };
+    if dry_run {
+        let _ = std::fs::create_dir_all(cfg.data["paths"]["metadata"].as_str().unwrap_or(""));
+        let plan = sd::plan_path(cfg);
+        let written = if rows.is_empty() {
+            // no files: R writes the empty inspection table (header only)
+            std::fs::write(&plan, format!("file_path,rel_path,filename,file_size_mb,is_audio,ext,sample_rate,channels,duration_s,parsed_datetime,grid,category,status_msg{}", rcsv::EOL))
+        } else {
+            sd::write_rows(&plan, &rows)
+        };
+        if let Err(e) = written {
+            return Outcome::failed(format!("Could not write {}: {e}", plan.display()));
+        }
+    }
+    emit("std_state", sd::state_event(cfg, &s));
+    let mut o = Outcome::ok("");
+    if !dry_run {
+        o.extra.insert("run_dir".into(), json!(s.standardized_dir));
+        o.extra.insert("n_done".into(), json!(done));
+        o.extra.insert("n_failed".into(), json!(failed));
+        o.extra.insert("minutes".into(), json!((t0.elapsed().as_secs_f64() / 60.0 * 100.0).round() / 100.0));
+    }
     o
 }
 
@@ -258,6 +330,13 @@ fn main() -> ExitCode {
     let outcome = match name.as_str() {
         "inspect" => job_inspect(&cfg, &found),
         "scan" => job_scan(&cfg, &job),
+        "std_state" => {
+            let s = pamflow_core::standardize::Settings::from(&cfg, &job["std"]);
+            emit("std_state", pamflow_core::standardize::state_event(&cfg, &s));
+            Outcome::ok("")
+        }
+        "std_plan" => job_standardize(&cfg, &job, true),
+        "standardize" => job_standardize(&cfg, &job, false),
         "scan_results" => {
             emit("scan", pamflow_core::scan::scan_event(&cfg));
             Outcome::ok("")
