@@ -10,6 +10,13 @@ mkdir -p "$DIR"
 if [ ! -d "$DIR/src/.git" ]; then
   git -c core.longpaths=true clone --depth 1 --branch "$TAG" https://github.com/tensorflow/tensorflow.git "$DIR/src"
 fi
+# MSVC: in model_building.h, `friend class Tensor;` inside Buffer binds to a
+# different Tensor because model_builder::Tensor is not declared yet (error
+# C2248 in Tensor(Buffer)). Declare it up front, next to `class Graph;`.
+MB="$DIR/src/tensorflow/lite/core/model_building.h"
+if ! grep -q "^class Tensor;$" "$MB"; then
+  sed -i 's/^class Graph;$/class Graph;\nclass Tensor;/' "$MB"
+fi
 # TENSORFLOW_SOURCE_DIR: without it TFLite's CMake downloads its own pinned
 # TensorFlow (v2.19.0 in the 2.21.0 source), a second copy of another version.
 cmake -S "$DIR/src/tensorflow/lite/c" -B "$DIR/build" -A x64 \

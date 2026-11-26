@@ -72,6 +72,18 @@ impl Config {
         Ok(Self { path: path.to_path_buf(), root, data })
     }
 
+    /// Settings the app changes for one run only (`job.birdnet`, `job.filter`):
+    /// laid over `section` with modifyList rules.
+    pub fn override_section(&mut self, section: &str, values: &serde_json::Value) {
+        let serde_json::Value::Object(o) = values else { return };
+        if o.is_empty() {
+            return;
+        }
+        let mut patch = yaml_rust2::yaml::Hash::new();
+        patch.insert(Yaml::String(section.into()), json_to_yaml(values));
+        modify_list(&mut self.data, &Yaml::Hash(patch));
+    }
+
     /// `section: key:` of the merged settings (`Yaml::BadValue` when absent).
     pub fn get(&self, section: &str, key: &str) -> &Yaml {
         &self.data[section][key]
@@ -109,6 +121,24 @@ pub fn modify_list(base: &mut Yaml, val: &Yaml) {
             None => {
                 b.insert(k.clone(), new.clone());
             }
+        }
+    }
+}
+
+/// A JSON value as YAML (job-file values laid over settings).
+pub fn json_to_yaml(v: &serde_json::Value) -> Yaml {
+    use serde_json::Value as J;
+    match v {
+        J::Null => Yaml::Null,
+        J::Bool(b) => Yaml::Boolean(*b),
+        J::Number(n) => match n.as_i64() {
+            Some(i) => Yaml::Integer(i),
+            None => Yaml::Real(n.to_string()),
+        },
+        J::String(s) => Yaml::String(s.clone()),
+        J::Array(a) => Yaml::Array(a.iter().map(json_to_yaml).collect()),
+        J::Object(o) => {
+            Yaml::Hash(o.iter().map(|(k, v)| (Yaml::String(k.clone()), json_to_yaml(v))).collect())
         }
     }
 }

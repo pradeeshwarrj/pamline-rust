@@ -17,11 +17,32 @@ use serde_json::{json, Map, Value};
 use std::process::ExitCode;
 
 /// Jobs the Rust engine runs. Everything else still goes to the R bridge.
-///
-/// Not yet complete: after saving, run_job.R reports the project again
-/// (`inspect`); until `inspect` is ported the app must keep sending these
-/// jobs to R.
-const PORTED: &[&str] = &["config_save", "config_save_as"];
+const PORTED: &[&str] = &["inspect", "config_save", "config_save_as"];
+
+/// Report the project (`job_inspect`): the "project" event.
+fn job_inspect(cfg: &Config, found: &Found) -> Outcome {
+    emit("project", pamflow_core::inspect::project_event(cfg, found));
+    Outcome::ok("")
+}
+
+/// After a save, read the saved file and report the project again, as
+/// run_job.R does (with the job's run-only overrides).
+fn inspect_after_save(job: &Value, found: &Found) -> Outcome {
+    match Config::read(&found.config) {
+        Ok(mut cfg) => {
+            apply_overrides(&mut cfg, job);
+            job_inspect(&cfg, found)
+        }
+        Err(e) => Outcome::failed(e.to_string()),
+    }
+}
+
+/// Settings the app changes for this run only (`job.birdnet`, `job.filter`).
+fn apply_overrides(cfg: &mut Config, job: &Value) {
+    for section in ["birdnet", "filter"] {
+        cfg.override_section(section, &job[section]);
+    }
+}
 
 /// What a job ends with: the fields of the "finished" event.
 struct Outcome {
@@ -64,7 +85,7 @@ fn job_config_save(job: &Value, found: &Found) -> Outcome {
         Ok(None) => Outcome::ok("Nothing to save."),
         Ok(Some(saved)) => {
             emit("config_saved", json!({ "n": changes.len(), "backup": saved.backup }));
-            Outcome::ok("")
+            inspect_after_save(job, found)
         }
         Err(e) => Outcome::failed(e),
     }
@@ -84,7 +105,7 @@ fn job_config_save_as(job: &Value, found: &Found) -> Outcome {
             } else {
                 emit("config_saved", json!({ "n": changes.len(), "backup": saved.backup, "config": config }));
             }
-            Outcome::ok("")
+            inspect_after_save(job, &now)
         }
         Err(e) => Outcome::failed(e),
     }
@@ -114,15 +135,20 @@ fn main() -> ExitCode {
 
     let project = job["project"].as_str();
     let Some(found) = find_config(project, job["config"].as_str()) else {
+        if name == "inspect" {
+            emit("no_config", pamflow_core::inspect::no_config_event(project, job["config"].as_str()));
+        }
         return finish(Outcome::failed(format!(
             "No pamflow settings file found in {} (looked for config/config.yml and config.yml).",
             project.unwrap_or("")
         )));
     };
     // like run_job.R: the current settings must be readable before any job runs
-    if let Err(e) = Config::read(&found.config) {
-        return finish(Outcome::failed(e.to_string()));
-    }
+    let mut cfg = match Config::read(&found.config) {
+        Ok(c) => c,
+        Err(e) => return finish(Outcome::failed(e.to_string())),
+    };
+    apply_overrides(&mut cfg, &job);
     emit(
         "started",
         json!({
@@ -131,6 +157,7 @@ fn main() -> ExitCode {
         }),
     );
     let outcome = match name.as_str() {
+        "inspect" => job_inspect(&cfg, &found),
         "config_save" => job_config_save(&job, &found),
         "config_save_as" => job_config_save_as(&job, &found),
         other => Outcome::failed(format!("unknown job: {other}")),

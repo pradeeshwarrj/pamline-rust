@@ -19,7 +19,11 @@ the app uses, so the app no longer ships R and Python. Plan: the handoff documen
 | Crate | Status |
 |---|---|
 | `pamflow-core` | config editor (port of `bridge/config_edit.R`); config reader with template merge, path resolution and pamflow's checks (`pam_config_read`, `pam_config_validate`); saving with check file, read-back and backups; project discovery; `@@PAM` events |
-| `pamflow-engine` | `pamflow-engine <job.json>`: same job file, events and exit codes as `Rscript bridge/run_job.R`. Runs `config_save` and `config_save_as`, but not the project report (`inspect`) that R sends after a save, so the app cannot use them yet |
+| `pamflow-engine` | `pamflow-engine <job.json>`: same job file, events and exit codes as `Rscript bridge/run_job.R`. Runs `inspect`, `config_save` and `config_save_as` (each save ends with the project report, as in R) |
+
+Checked against R with `tools/compare/inspect.py` and `tools/compare/config_save.py`
+(example project, a project without settings, refused settings, and the real
+4,700-recording project): identical events and files.
 
 Known differences from R, on purpose:
 - Two saves in the same second: R refuses the second one (the backup name exists); Rust numbers the second backup (`..._2.bak`).
