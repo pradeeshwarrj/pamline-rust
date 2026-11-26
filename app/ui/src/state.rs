@@ -27,6 +27,14 @@ fn remember(key: &str, value: &str) {
 /// All shared state, handed to the screens through context.
 #[derive(Clone, Copy)]
 pub struct Store {
+    /// The screen shown (a step id from the sidebar).
+    pub screen: RwSignal<&'static str>,
+    /// Scan step: idle | loading | scanning | ready | failed.
+    pub scan_status: RwSignal<&'static str>,
+    /// The engine's "scan" event: what the last scan found.
+    pub scan_summary: RwSignal<Option<Value>>,
+    pub scan_message: RwSignal<String>,
+    pub scan_log: RwSignal<Vec<String>>,
     /// What the user opened: a project folder (or a settings file, until it is read).
     pub folder: RwSignal<String>,
     /// The engine's "project" event for the open project.
@@ -50,6 +58,11 @@ pub struct Store {
 impl Store {
     pub fn new() -> Self {
         Store {
+            screen: RwSignal::new("project"),
+            scan_status: RwSignal::new("idle"),
+            scan_summary: RwSignal::new(None),
+            scan_message: RwSignal::new(String::new()),
+            scan_log: RwSignal::new(Vec::new()),
             folder: RwSignal::new(saved(STORAGE_KEY)),
             facts: RwSignal::new(None),
             checking: RwSignal::new(false),
@@ -110,6 +123,9 @@ impl Store {
         self.no_config.set(None);
         self.created.set(false);
         self.example.set(false);
+        // results belong to the previous project
+        self.scan_status.set("idle");
+        self.scan_summary.set(None);
     }
 }
 
@@ -274,5 +290,51 @@ pub fn save_settings(store: Store, target: Option<String>) {
             Err(e) => store.save_error.set(e),
         }
         store.saving.set(false);
+    });
+}
+
+// ---- Scan ------------------------------------------------------------------------------------------
+
+async fn scan_job(store: Store, job: &str, force: bool) {
+    let folder = store.folder.get_untracked();
+    let events = match run_job(json!({ "job": job, "project": folder, "force": force }), |_| {}).await {
+        Ok(e) => e,
+        Err(e) => {
+            store.scan_status.set("failed");
+            store.scan_message.set(e);
+            return;
+        }
+    };
+    let finished_ok = events.iter().any(|e| e["type"] == "finished" && e["status"] == "ok");
+    store.scan_log.set(
+        events
+            .iter()
+            .filter(|e| e["type"] == "log" || e["type"] == "text")
+            .map(|e| e["text"].as_str().unwrap_or("").to_string())
+            .collect(),
+    );
+    if let Some(summary) = events.iter().find(|e| e["type"] == "scan") {
+        store.scan_summary.set(Some(summary.clone()));
+    }
+    store.scan_status.set(if finished_ok { "ready" } else { "failed" });
+    store.scan_message.set(if finished_ok { String::new() } else { failure_message(&events, "Scanning failed.") });
+}
+
+/// Show what the last scan found (`scan_results`).
+pub fn load_scan(store: Store) {
+    if store.folder.get_untracked().is_empty() {
+        return;
+    }
+    store.scan_status.set("loading");
+    spawn_local(async move { scan_job(store, "scan_results", false).await });
+}
+
+/// Scan the recordings; the Project screen then shows the new scan.
+pub fn run_scan(store: Store, force: bool) {
+    store.scan_status.set("scanning");
+    store.scan_message.set(String::new());
+    spawn_local(async move {
+        scan_job(store, "scan", force).await;
+        refresh_now(store).await;
     });
 }

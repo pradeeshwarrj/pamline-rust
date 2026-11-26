@@ -5,6 +5,7 @@
 mod components;
 mod i18n;
 mod project;
+mod scan;
 mod state;
 mod tauri;
 
@@ -13,6 +14,9 @@ use i18n::t;
 use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use state::Store;
+
+/// The steps whose screens are ported; the others show "coming soon".
+const READY: [&str; 2] = ["project", "scan"];
 
 /// The workflow A steps in order, with their pastel (see `config/stages.ts`).
 const STEPS: [(&str, &str); 9] = [
@@ -61,7 +65,7 @@ fn ThemeSwitch(dark: RwSignal<bool>) -> impl IntoView {
 }
 
 #[component]
-fn Sidebar(current: &'static str, dark: RwSignal<bool>) -> impl IntoView {
+fn Sidebar(store: Store, dark: RwSignal<bool>) -> impl IntoView {
     view! {
         <nav class="sidebar">
             <div class="brand"><span class="logo">"p"</span><span class="name">{t("app.name")}</span></div>
@@ -71,11 +75,16 @@ fn Sidebar(current: &'static str, dark: RwSignal<bool>) -> impl IntoView {
                     .iter()
                     .enumerate()
                     .map(|(i, (id, palette))| {
-                        let active = *id == current;
+                        let id: &'static str = id;
+                        let ready = READY.contains(&id);
                         view! {
-                            <li class="step" class:active=active class:soon=!active style=accent_style(palette)>
-                                <span class="num">{i + 1}</span>
-                                <span>{t(&format!("stages.{id}"))}</span>
+                            <li>
+                                <button type="button" class="step" class:active=move || store.screen.get() == id class:soon=!ready
+                                    style=accent_style(palette)
+                                    on:click=move |_| { if ready { store.screen.set(id) } }>
+                                    <span class="num">{i + 1}</span>
+                                    <span>{t(&format!("stages.{id}"))}</span>
+                                </button>
                             </li>
                         }
                     })
@@ -97,13 +106,18 @@ fn App() -> impl IntoView {
     });
     view! {
         <div class="app">
-            <Sidebar current="project" dark=dark />
-            <main style=accent_style("sky")>
+            <Sidebar store=store dark=dark />
+            <main style=move || accent_style(STEPS.iter().find(|(id, _)| *id == store.screen.get()).map(|(_, p)| *p).unwrap_or("sky"))>
                 <div class="content">
-                    {if tauri::in_app() {
-                        view! { <project::ProjectScreen store=store /> }.into_any()
-                    } else {
-                        view! { <p class="muted">"Open this page through the pamflow app (cargo tauri dev)."</p> }.into_any()
+                    {move || {
+                        if !tauri::in_app() {
+                            return view! { <p class="muted">"Open this page through the pamflow app (cargo tauri dev)."</p> }.into_any();
+                        }
+                        match store.screen.get() {
+                            "project" => view! { <project::ProjectScreen store=store /> }.into_any(),
+                            "scan" => view! { <scan::ScanScreen store=store /> }.into_any(),
+                            _ => view! { <components::Card title=t("common.notBuiltTitle")><p class="muted">{t("common.notBuiltBody")}</p></components::Card> }.into_any(),
+                        }
                     }}
                 </div>
             </main>

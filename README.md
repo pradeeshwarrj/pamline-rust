@@ -59,7 +59,7 @@ Known differences from R, on purpose:
 Leptos (Rust compiled to WebAssembly) inside a Tauri 2 shell, ported from pamflow-desktop:
 
 - `app/src-tauri`: the shell (job runner, engine launcher, dialogs, close prompt, first-launch setup). Jobs in the routing table run in `pamflow-engine`, the rest in the R bridge, which is still read from the `pamflow-desktop` folder next to this repository (or `PAMFLOW_DESKTOP`).
-- `app/ui`: the screens. Done: the shell around them (sidebar) and Project. Text comes from `en.json`, the look from the old app's tokens.
+- `app/ui`: the screens. Done: the shell around them (sidebar with navigation), Project and Scan. Text comes from `en.json`, the look from the old app's tokens.
 
 Tools: `rustup target add wasm32-unknown-unknown`, `cargo install trunk tauri-cli --locked`. Run it (build the engine first, `cargo build`):
 
