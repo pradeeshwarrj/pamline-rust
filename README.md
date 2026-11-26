@@ -9,7 +9,7 @@ installed in pamflow Desktop 0.2.1's runtime (`runtime/.pixi/envs/default`).
 
 ## Decisions (2026-11-25)
 
-- The interface is rewritten in Rust too (framework not chosen yet).
+- The interface is rewritten in Rust too, with Leptos (Rust compiled to WebAssembly) inside the existing Tauri 2 shell (decided 2026-11-26). The app lives in this repository: the shell code (jobs, dialogs, close prompt, installers) is brought over from pamflow-desktop and the Svelte screens are ported one by one, Project first.
 - BirdNET: the spike is done ([spikes/birdnet/REPORT.md](spikes/birdnet/REPORT.md)).
   The TensorFlow Lite C library (a 4.3 MB DLL) run from Rust matches Python's
   scores to 7.4e-5 on the global model and a custom classifier, and is faster.
@@ -53,6 +53,20 @@ Known differences from R, on purpose:
 - A number setting holding text (`min_confidence: "abc"`) is refused; R compares it as text and lets it through.
 - `diagnostics` lists the Rust engine's versions instead of R and Python's.
 - `standardize` converts audio with the `ffmpeg` program (on the PATH) where R uses its built-in libav. The converted audio is sample-identical on the test files, but the files differ in bytes (the encoder version tag differs: `Lavf61` in R's package, whatever ffmpeg is installed). Copied files are byte-identical. As in R's pamflow, mp3/m4a/ogg/wma/aiff are listed as unreadable (so isolated as corrupt): only WAV and FLAC headers are read.
+
+## The app (`app/`)
+
+Leptos (Rust compiled to WebAssembly) inside a Tauri 2 shell, ported from pamflow-desktop:
+
+- `app/src-tauri`: the shell (job runner, engine launcher, dialogs, close prompt, first-launch setup). Jobs in the routing table run in `pamflow-engine`, the rest in the R bridge, which is still read from the `pamflow-desktop` folder next to this repository (or `PAMFLOW_DESKTOP`).
+- `app/ui`: the screens. Done: the shell around them (sidebar) and Project. Text comes from `en.json`, the look from the old app's tokens.
+
+Tools: `rustup target add wasm32-unknown-unknown`, `cargo install trunk tauri-cli --locked`. Run it (build the engine first, `cargo build`):
+
+```
+cd app
+cargo tauri dev
+```
 
 ## Tests
 

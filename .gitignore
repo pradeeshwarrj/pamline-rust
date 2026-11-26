@@ -3,3 +3,4 @@ target/
 spikes/birdnet/data/
 spikes/birdnet/tflite/
 *.log
+app/ui/dist/
