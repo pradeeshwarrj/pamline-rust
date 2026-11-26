@@ -1,1 +1,2 @@
 crates/pamflow-core/tests/golden/** -text
+crates/pamflow-core/data/** -text
