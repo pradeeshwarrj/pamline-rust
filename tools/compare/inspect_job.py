@@ -1,7 +1,7 @@
 """Run the inspect job through the R bridge and the Rust engine and compare
 the events field by field.
 
-    python tools/compare/inspect.py <pamflow-desktop folder> <work folder> [project folder ...]
+    python tools/compare/inspect_job.py <pamflow-desktop folder> <work folder> [project folder ...]
 
 Projects: pamflow's example project, a folder without settings (no_config),
 a project whose settings pamflow refuses, plus each project folder given

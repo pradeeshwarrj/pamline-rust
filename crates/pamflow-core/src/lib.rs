@@ -8,3 +8,4 @@ pub mod config_save;
 pub mod events;
 pub mod inspect;
 pub mod project;
+pub mod project_jobs;

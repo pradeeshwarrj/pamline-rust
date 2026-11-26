@@ -7,3 +7,6 @@ license.workspace = true
 [dependencies]
 pamflow-core = { path = "../pamflow-core" }
 serde_json.workspace = true
+chrono.workspace = true
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
+iana-time-zone = "0.1"

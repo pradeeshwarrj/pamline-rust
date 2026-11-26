@@ -1,5 +1,6 @@
 //! Reading a pamflow settings file (port of `pam_config_read` and
-//! `pam_config_validate`, pamflow 0.6.0 `R/config.R`).
+//! `pam_config_validate`, pamflow 0.6.0 as installed in pamflow Desktop
+//! 0.2.1's runtime, which is the reference for every comparison).
 //!
 //! The user's file is laid over pamflow's template defaults with R's
 //! `utils::modifyList` rules: mappings merge key by key, anything else
@@ -12,7 +13,8 @@ use crate::project::is_absolute;
 use std::path::{Path, PathBuf};
 use yaml_rust2::{Yaml, YamlLoader};
 
-/// pamflow 0.6.0's `inst/extdata/config_template.yml`.
+/// pamflow 0.6.0's `extdata/config_template.yml`, as installed in pamflow
+/// Desktop 0.2.1's runtime (`project_root: "."`).
 pub const TEMPLATE: &str = include_str!("../data/config_template.yml");
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -44,10 +46,15 @@ impl Config {
         let user = if user.as_hash().is_some() { user } else { Yaml::Hash(Default::default()) };
         modify_list(&mut data, &user);
 
-        let config_dir = canonical(path.parent().unwrap_or(Path::new(".")));
+        // A relative project_root is relative to the folder the app works in:
+        // the bridge sets the working folder to the project (the folder above
+        // config/, or the one holding the file) and the installed pamflow
+        // resolves against it. (pamflow's newer source resolves against the
+        // config folder instead; the app's runtime does not.)
+        let work_dir = canonical(Path::new(&crate::config_edit::derive_root(path)));
         let root_setting = data["paths"]["project_root"].as_str().unwrap_or(".").to_string();
         let root_dir =
-            if is_absolute(&root_setting) { PathBuf::from(&root_setting) } else { config_dir.join(&root_setting) };
+            if is_absolute(&root_setting) { PathBuf::from(&root_setting) } else { work_dir.join(&root_setting) };
         let root = norm(&root_dir);
 
         if let Yaml::Hash(top) = &mut data {
@@ -236,6 +243,11 @@ fn norm(p: &Path) -> String {
     c.to_string_lossy().replace('\\', "/")
 }
 
+/// `normalizePath(p, winslash = "/")`: canonical when it exists, else absolute.
+pub fn canonical_slash(p: &Path) -> String {
+    norm(p)
+}
+
 /// `fs::path(root, p)`: joined with one forward slash.
 fn join_slash(root: &str, p: &str) -> String {
     let p = p.replace('\\', "/");
@@ -253,6 +265,23 @@ mod tests {
     fn template_is_valid() {
         let t = parse(TEMPLATE).unwrap();
         assert!(validate(&t).is_empty(), "{:?}", validate(&t));
+    }
+
+    /// Like the shipped app: "." in <project>/config/config.yml is the
+    /// project folder, not config/.
+    #[test]
+    fn relative_root_is_the_project_folder() {
+        let dir = std::env::temp_dir().join("pamflow-core-config-root").join("proj");
+        std::fs::create_dir_all(dir.join("config")).unwrap();
+        std::fs::write(dir.join("config").join("config.yml"), "paths:\n  project_root: \".\"\n").unwrap();
+        let cfg = Config::read(&dir.join("config").join("config.yml")).unwrap();
+        let want = norm(&dir);
+        assert_eq!(cfg.root, want);
+        assert_eq!(cfg.data["paths"]["metadata"].as_str(), Some(format!("{want}/metadata").as_str()));
+        // a file outside config/: relative to the folder holding it
+        std::fs::write(dir.join("study.yml"), "paths:\n  project_root: \"data\"\n").unwrap();
+        let cfg = Config::read(&dir.join("study.yml")).unwrap();
+        assert_eq!(cfg.root, format!("{want}/data"));
     }
 
     #[test]
