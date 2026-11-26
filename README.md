@@ -4,6 +4,9 @@ Rewrite of pamflow Desktop (0.2.1) and the parts of the pamflow R package (0.6.0
 the app uses, so the app no longer ships R and Python. Plan: the handoff document
 "rebuilding pamflow Desktop entirely in Rust" (2026-11-25).
 
+The reference for every comparison is the app as shipped: pamflow 0.6.0 as
+installed in pamflow Desktop 0.2.1's runtime (`runtime/.pixi/envs/default`).
+
 ## Decisions (2026-11-25)
 
 - The interface is rewritten in Rust too (framework not chosen yet).
@@ -16,20 +19,38 @@ the app uses, so the app no longer ships R and Python. Plan: the handoff documen
 - Acoustic indices are implemented from the published papers; the GPL R packages
   (soundecology, seewave) are used only as black-box references.
 
-## Layout
+## What runs in Rust
 
-| Crate | Status |
+`pamflow-engine <job.json>` takes the same job file as `Rscript bridge/run_job.R`
+and prints the same `@@PAM` events, with the same exit codes. Jobs ported:
+
+| Job | Checked against R with |
 |---|---|
-| `pamflow-core` | config editor (port of `bridge/config_edit.R`); config reader with template merge, path resolution and pamflow's checks (`pam_config_read`, `pam_config_validate`); saving with check file, read-back and backups; project discovery; `@@PAM` events |
-| `pamflow-engine` | `pamflow-engine <job.json>`: same job file, events and exit codes as `Rscript bridge/run_job.R`. Runs `inspect`, `config_save` and `config_save_as` (each save ends with the project report, as in R) |
+| `inspect` | `tools/compare/inspect_job.py` |
+| `config_save`, `config_save_as` | `tools/compare/config_save.py` |
+| `project_create`, `example_project`, `diagnostics` | `tools/compare/project_jobs.py` |
+| `scan`, `scan_results` | `tools/compare/scan.py` (see `tools/compare/SCAN_NOTES.md`) |
 
-Checked against R with `tools/compare/inspect.py` and `tools/compare/config_save.py`
-(example project, a project without settings, refused settings, and the real
-4,700-recording project): identical events and files.
+Each comparison runs both engines on their own copies of the same projects
+(pamflow's example project, hand-made edge cases, and the real 4,700-recording
+project) and compares files byte for byte and events field by field. Build first
+(`cargo build`), then for example:
+
+```
+python tools/compare/scan.py <pamflow-desktop> <scratch folder> D:/PAM_GNI/config/config.yml
+```
+
+`pamflow-core` modules: `config_edit` (comment-keeping editor), `config` (reader:
+template merge, paths, checks), `config_save`, `project`, `project_jobs`,
+`inspect`, `audio_files` (listing, file-name parsing), `audio_header` (WAV like
+tuneR, FLAC STREAMINFO), `scan`, `rcsv` (CSV like data.table fwrite/fread),
+`rtime` (dates like R's strptime), `collate` (R's sort order), `stage_log`
+(pamflow's stage log), `events`.
 
 Known differences from R, on purpose:
 - Two saves in the same second: R refuses the second one (the backup name exists); Rust numbers the second backup (`..._2.bak`).
 - A number setting holding text (`min_confidence: "abc"`) is refused; R compares it as text and lets it through.
+- `diagnostics` lists the Rust engine's versions instead of R and Python's.
 
 ## Tests
 
@@ -43,14 +64,6 @@ this folder) or from `PAMFLOW_TEMPLATE`.
 `crates/pamflow-core/tests/golden/config_edit/` holds edit cases whose expected
 output was made by the R editor; the Rust editor must match it byte for byte.
 To regenerate (with the runtime bundled in pamflow-desktop):
-
-`tools/compare/config_save.py` runs the same save jobs through the R bridge and
-the Rust engine on copies of a project and compares the saved files, backups and
-events (`cargo build` first):
-
-```
-python tools/compare/config_save.py <pamflow-desktop> <scratch folder> [a real config.yml ...]
-```
 
 ```
 python tools/golden/config_edit_cases.py

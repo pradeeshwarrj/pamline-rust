@@ -14,3 +14,8 @@ chrono-tz.workspace = true
 fancy-regex.workspace = true
 csv.workspace = true
 num_cpus.workspace = true
+num-bigint.workspace = true
+rustc_apfloat.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Globalization"] }

@@ -11,7 +11,8 @@ pub fn is_audio_name(name: &str) -> bool {
 
 /// All recordings under `dir`, like R's `list.files(dir, pattern, full.names =
 /// TRUE, recursive = TRUE)`: `dir` + "/" + the relative path with forward
-/// slashes, hidden files (".name") left out, sorted by full path.
+/// slashes, hidden files (".name") left out, sorted by full path in R's
+/// (locale) order.
 pub fn list_audio(dir: &str) -> Vec<String> {
     fn walk(base: &Path, rel: &str, out: &mut Vec<String>) {
         let Ok(entries) = std::fs::read_dir(base) else { return };
@@ -32,8 +33,13 @@ pub fn list_audio(dir: &str) -> Vec<String> {
     walk(Path::new(dir), "", &mut rel);
     let dir = dir.trim_end_matches(['/', '\\']);
     let mut out: Vec<String> = rel.into_iter().map(|r| format!("{dir}/{r}")).collect();
-    out.sort();
+    crate::collate::sort(&mut out);
     out
+}
+
+/// Same as [`list_audio`] (R's order).
+pub fn list_audio_r(dir: &str) -> Vec<String> {
+    list_audio(dir)
 }
 
 /// One file name read with `filenames: pattern:` and `timezone:`.

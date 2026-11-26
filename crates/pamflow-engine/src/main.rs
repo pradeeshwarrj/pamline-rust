@@ -19,7 +19,32 @@ use std::process::ExitCode;
 
 /// Jobs the Rust engine runs. Everything else still goes to the R bridge.
 const PORTED: &[&str] =
-    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics"];
+    &["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results"];
+
+/// Scan the recordings (`job_scan`): stage 01 with progress as log events,
+/// then the summary.
+fn job_scan(cfg: &Config, job: &Value) -> Outcome {
+    use pamflow_core::{scan, stage_log};
+    emit("stage", json!({ "stage": "scan", "label": "Scanning recordings" }));
+    let logs = cfg.data["paths"]["logs"].as_str().map(std::path::PathBuf::from);
+    let sink: stage_log::Sink = Box::new(|level, stage, text| {
+        emit("log", json!({ "level": level, "stage": stage, "text": text }));
+    });
+    let mut log = stage_log::StageLog::new(scan::STAGE, logs, sink);
+    let force = job["force"].as_bool().unwrap_or(false);
+    let run = stage_log::run_stage(&mut log, |log| scan::scan_audio(cfg, force, log));
+    if run.result.is_none() {
+        let mut msg = "Scanning the recordings failed; see the log.".to_string();
+        if let Some(e) = &run.last_error {
+            msg = msg.replace("see the log.", &format!("pamflow said: {e}"));
+        }
+        return Outcome::failed(msg);
+    }
+    emit("scan", scan::scan_event(cfg));
+    let mut o = Outcome::ok("");
+    o.extra.insert("minutes".into(), json!((run.minutes * 100.0).round() / 100.0));
+    o
+}
 
 /// Write the diagnostics file (works without a project).
 fn job_diagnostics(job: &Value) -> ExitCode {
@@ -96,7 +121,10 @@ impl Outcome {
 fn finish(o: Outcome) -> ExitCode {
     let mut fields = Map::new();
     fields.insert("status".into(), json!(o.status));
-    fields.insert("message".into(), json!(o.message));
+    // R's successful jobs end with no message field
+    if !(o.status == "ok" && o.message.is_empty()) {
+        fields.insert("message".into(), json!(o.message));
+    }
     fields.extend(o.extra);
     emit("finished", Value::Object(fields));
     ExitCode::from(if o.status == "ok" { 0 } else { 1 })
@@ -229,6 +257,11 @@ fn main() -> ExitCode {
     );
     let outcome = match name.as_str() {
         "inspect" => job_inspect(&cfg, &found),
+        "scan" => job_scan(&cfg, &job),
+        "scan_results" => {
+            emit("scan", pamflow_core::scan::scan_event(&cfg));
+            Outcome::ok("")
+        }
         "config_save" => job_config_save(&job, &found),
         "config_save_as" => job_config_save_as(&job, &found),
         other => Outcome::failed(format!("unknown job: {other}")),

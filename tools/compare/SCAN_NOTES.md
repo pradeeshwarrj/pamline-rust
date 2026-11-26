@@ -52,7 +52,24 @@ Edge project and comparisons: `tools/compare/scan.py` (`--r-only` shows R's even
 - logical TRUE/FALSE, NA -> empty, numbers 15 significant digits trimmed.
 - POSIXct: UTC ISO `2026-04-15T03:27:29Z`; fraction m = int(frac*1e7); m += m%10;
   m /= 10; m%1000==0 -> 3 digits (`.455`), else 6 (`.701333`).
-- LF line endings? check (files above looked LF).
+- line endings: fwrite writes CRLF on Windows (probe: `61 2c 62 0d 0a ...`).
+- sort order of paths: Windows `CompareStringEx(user locale, SORT_STRINGSORT)`
+  (what R's strcoll uses); see `crates/pamflow-core/src/collate.rs`.
+
+## Port status
+
+`crates/pamflow-core/src/scan.rs` (+ `audio_header.rs`, `rcsv.rs`, `rtime.rs`,
+`collate.rs`, `stage_log.rs`); jobs `scan` and `scan_results` in the engine.
+`tools/compare/scan.py`: identical to R on the example, edge and real
+(4,700 recordings) projects: all four CSVs byte for byte, every event and log
+line; first, cached and forced scans.
+
+Two R number details found on the real project (`crates/pamflow-core/src/rnum.rs`):
+- fwrite's digits come from a lookup table and double arithmetic
+  (`writeFloat64`), not correct rounding: 11 of ~4,700 `gap_s` values differed in
+  the 15th digit until this was reproduced.
+- R's `sum()` adds in x87 80-bit precision on Windows (MinGW `long double`):
+  one per-grid `hours` value differed until emulated (rustc_apfloat).
 
 ## scan event (`emit_scan`)
 per_grid rows: hours and median_file_min rounded to 1; first/last as
