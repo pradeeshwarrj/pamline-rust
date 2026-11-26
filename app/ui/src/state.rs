@@ -2,6 +2,7 @@
 //! and `backend/settings.svelte.ts`). Everything the screens show comes from
 //! what the engine reports; nothing is computed here.
 
+use crate::longjob::LongJob;
 use crate::tauri::{failure_message, run_job, set_job_config};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -35,6 +36,15 @@ pub struct Store {
     pub scan_summary: RwSignal<Option<Value>>,
     pub scan_message: RwSignal<String>,
     pub scan_log: RwSignal<Vec<String>>,
+    /// Standardize step: the engine's "std_state" event (settings, problems, plan, last run).
+    pub std_state: RwSignal<Option<Value>>,
+    pub std_checking: RwSignal<bool>,
+    pub std_prep_done: RwSignal<i64>,
+    pub std_prep_total: RwSignal<i64>,
+    pub std_message: RwSignal<String>,
+    pub std_log: RwSignal<Vec<String>>,
+    /// The Standardize run itself.
+    pub std_job: LongJob,
     /// What the user opened: a project folder (or a settings file, until it is read).
     pub folder: RwSignal<String>,
     /// The engine's "project" event for the open project.
@@ -57,7 +67,21 @@ pub struct Store {
 
 impl Store {
     pub fn new() -> Self {
+        let std_state = RwSignal::new(None);
+        let std_job = LongJob::new();
+        std_job.listen(move |e| {
+            if e["type"] == "std_state" {
+                std_state.set(Some(e.clone()));
+            }
+        });
         Store {
+            std_state,
+            std_job,
+            std_checking: RwSignal::new(false),
+            std_prep_done: RwSignal::new(0),
+            std_prep_total: RwSignal::new(0),
+            std_message: RwSignal::new(String::new()),
+            std_log: RwSignal::new(Vec::new()),
             screen: RwSignal::new("project"),
             scan_status: RwSignal::new("idle"),
             scan_summary: RwSignal::new(None),
@@ -126,6 +150,7 @@ impl Store {
         // results belong to the previous project
         self.scan_status.set("idle");
         self.scan_summary.set(None);
+        self.std_state.set(None);
     }
 }
 
@@ -337,4 +362,60 @@ pub fn run_scan(store: Store, force: bool) {
         scan_job(store, "scan", force).await;
         refresh_now(store).await;
     });
+}
+
+// ---- Standardize --------------------------------------------------------------------------------------
+
+fn take_std_state(store: Store, events: &[Value]) {
+    if let Some(s) = events.iter().find(|e| e["type"] == "std_state") {
+        store.std_state.set(Some(s.clone()));
+    }
+}
+
+/// What the Standardize step knows: settings, problems, the plan and the last run.
+pub fn load_std_state(store: Store) {
+    let folder = store.folder.get_untracked();
+    if folder.is_empty() {
+        return;
+    }
+    spawn_local(async move {
+        if let Ok(events) = run_job(json!({ "job": "std_state", "project": folder }), |_| {}).await {
+            take_std_state(store, &events);
+        }
+    });
+}
+
+/// Dry run: plan every raw file; nothing but the plan table is written.
+pub fn check_raw(store: Store) {
+    let folder = store.folder.get_untracked();
+    store.std_checking.set(true);
+    store.std_prep_done.set(0);
+    store.std_prep_total.set(0);
+    store.std_message.set(String::new());
+    store.std_log.set(Vec::new());
+    spawn_local(async move {
+        let on_event = move |e: &Value| match e["type"].as_str().unwrap_or("") {
+            "prep" => {
+                store.std_prep_done.set(e["done"].as_i64().unwrap_or(0));
+                store.std_prep_total.set(e["total"].as_i64().unwrap_or(0));
+            }
+            "log" | "text" => store.std_log.update(|l| l.push(e["text"].as_str().unwrap_or("").to_string())),
+            _ => {}
+        };
+        match run_job(json!({ "job": "std_plan", "project": folder }), on_event).await {
+            Ok(events) => {
+                take_std_state(store, &events);
+                if !events.iter().any(|e| e["type"] == "finished" && e["status"] == "ok") {
+                    store.std_message.set(failure_message(&events, "Checking failed."));
+                }
+            }
+            Err(e) => store.std_message.set(e),
+        }
+        store.std_checking.set(false);
+    });
+}
+
+/// The real run (copies and converts; raw files are never changed).
+pub fn start_standardize(store: Store) {
+    store.std_job.start(json!({ "job": "standardize", "project": store.folder.get_untracked() }));
 }

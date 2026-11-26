@@ -12,7 +12,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
 
-fn text(v: &Value) -> String {
+pub fn text(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
         Value::Null => String::new(),
@@ -20,12 +20,12 @@ fn text(v: &Value) -> String {
     }
 }
 
-fn slash(p: &str) -> String {
+pub fn slash(p: &str) -> String {
     p.replace('\\', "/")
 }
 
 /// A number with thousands separators (toLocaleString).
-fn thousands(n: i64) -> String {
+pub fn thousands(n: i64) -> String {
     let s = n.abs().to_string();
     let mut out = String::new();
     for (i, c) in s.chars().rev().enumerate() {
@@ -39,7 +39,7 @@ fn thousands(n: i64) -> String {
 
 // ---- setting fields -----------------------------------------------------------------------
 
-fn text_field(store: Store, section: &'static str, key: &'static str, placeholder: &'static str) -> impl IntoView {
+pub fn text_field(store: Store, section: &'static str, key: &'static str, placeholder: &'static str) -> impl IntoView {
     view! {
         <input class="input" placeholder=placeholder
             prop:value=move || text(&store.get(section, key))
@@ -47,7 +47,7 @@ fn text_field(store: Store, section: &'static str, key: &'static str, placeholde
     }
 }
 
-fn number_field(store: Store, section: &'static str, key: &'static str, min: &'static str, max: &'static str, step: &'static str, integer: bool) -> impl IntoView {
+pub fn number_field(store: Store, section: &'static str, key: &'static str, min: &'static str, max: &'static str, step: &'static str, integer: bool) -> impl IntoView {
     view! {
         <input class="input" type="number" min=min max=max step=step
             prop:value=move || match store.get(section, key) {
@@ -68,7 +68,7 @@ fn number_field(store: Store, section: &'static str, key: &'static str, min: &'s
     }
 }
 
-fn check_field(store: Store, section: &'static str, key: &'static str, label: String, default: bool) -> impl IntoView {
+pub fn check_field(store: Store, section: &'static str, key: &'static str, label: String, default: bool) -> impl IntoView {
     view! {
         <label class="check">
             <input type="checkbox"
@@ -79,7 +79,7 @@ fn check_field(store: Store, section: &'static str, key: &'static str, label: St
     }
 }
 
-fn field<V: IntoView + 'static>(label: String, input: V) -> impl IntoView {
+pub fn field<V: IntoView + 'static>(label: String, input: V) -> impl IntoView {
     view! { <div class="field"><span class="sub">{label}</span>{input}</div> }
 }
 
@@ -250,7 +250,7 @@ async fn gloo_wait() {
 // ---- the save bar --------------------------------------------------------------------------------
 
 #[component]
-fn SaveBar(store: Store) -> impl IntoView {
+pub fn SaveBar(store: Store) -> impl IntoView {
     let n_changes = move || store.changed().len();
     let saving = Signal::derive(move || store.saving.get());
     let save_as = move |_| {

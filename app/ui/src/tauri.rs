@@ -190,3 +190,72 @@ pub async fn pick_save_path(title: &str, default_path: &str, name: &str, extensi
 pub async fn show_folder(path: &str) {
     let _ = invoke("plugin:opener|reveal_item_in_dir", json!({ "paths": [path] })).await;
 }
+
+// ---- long-running jobs ----------------------------------------------------------------------------
+
+type Handler = Rc<dyn Fn(&str, &Value)>;
+
+thread_local! {
+    static HANDLERS: RefCell<Vec<Handler>> = const { RefCell::new(Vec::new()) };
+    static LISTENING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Listen to the shell's job events once, for the life of the page, and pass
+/// every event to the subscribed handlers.
+async fn ensure_listening() -> Result<(), String> {
+    if LISTENING.with(|l| l.get()) {
+        return Ok(());
+    }
+    let closure = Closure::<dyn FnMut(JsValue)>::new(move |msg: JsValue| {
+        let payload = from_js(&js_sys::Reflect::get(&msg, &"payload".into()).unwrap_or(JsValue::NULL));
+        let id = payload["id"].as_str().unwrap_or("").to_string();
+        let event = payload["event"].clone();
+        let handlers: Vec<Handler> = HANDLERS.with(|h| h.borrow().clone());
+        for h in handlers {
+            h(&id, &event);
+        }
+    });
+    listen_js("job-event", &closure).await.map_err(err_text)?;
+    closure.forget(); // lives as long as the page
+    LISTENING.with(|l| l.set(true));
+    Ok(())
+}
+
+/// Receive every job's events (id, event) from now on.
+pub async fn subscribe(handler: impl Fn(&str, &Value) + 'static) -> Result<(), String> {
+    ensure_listening().await?;
+    HANDLERS.with(|h| h.borrow_mut().push(Rc::new(handler)));
+    Ok(())
+}
+
+/// Start a job and return its id; its events arrive through [`subscribe`].
+pub async fn start_job(mut spec: Value) -> Result<String, String> {
+    if spec.get("config").is_none() {
+        let cfg = JOB_CONFIG.with(|c| c.borrow().clone());
+        if !cfg.is_empty() {
+            spec["config"] = json!(cfg);
+        }
+    }
+    invoke("start_job", json!({ "spec": spec })).await.map(|v| v.as_str().unwrap_or("").to_string())
+}
+
+/// Stop a running job (pamflow's checkpoints let the next start continue).
+pub async fn stop_job(id: &str) -> Result<(), String> {
+    invoke("stop_job", json!({ "id": id })).await.map(|_| ())
+}
+
+/// Free space (GB) on the drive holding `path`; None if unknown.
+pub async fn free_space(path: &str) -> Option<f64> {
+    invoke("free_space_gb", json!({ "path": path })).await.ok().and_then(|v| v.as_f64())
+}
+
+/// Milliseconds since 1970 (`Date.now()`).
+pub fn now_ms() -> f64 {
+    js_sys::Date::now()
+}
+
+/// The local time as `hh:mm:ss`.
+pub fn clock() -> String {
+    let d = js_sys::Date::new_0();
+    format!("{:02}:{:02}:{:02}", d.get_hours(), d.get_minutes(), d.get_seconds())
+}

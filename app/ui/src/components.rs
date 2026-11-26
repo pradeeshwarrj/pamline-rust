@@ -43,10 +43,15 @@ pub fn Button(
 
 /// A big number with a label, in a step's pastel.
 #[component]
-pub fn StatTile(#[prop(into)] value: String, #[prop(into)] label: String, #[prop(optional)] palette: Option<&'static str>) -> impl IntoView {
+pub fn StatTile(
+    #[prop(into)] value: Signal<String>,
+    #[prop(into)] label: String,
+    #[prop(optional)] palette: Option<&'static str>,
+    #[prop(optional)] plain: bool,
+) -> impl IntoView {
     view! {
-        <div class="tile" style=palette.map(accent_style)>
-            <div class="value">{value}</div>
+        <div class=if plain { "tile plain" } else { "tile" } style=palette.map(accent_style)>
+            <div class="value">{move || value.get()}</div>
             <div class="label">{label}</div>
         </div>
     }
@@ -54,8 +59,14 @@ pub fn StatTile(#[prop(into)] value: String, #[prop(into)] label: String, #[prop
 
 /// Small coloured label; neutral grey with no palette.
 #[component]
-pub fn Badge(#[prop(optional)] palette: Option<&'static str>, children: Children) -> impl IntoView {
-    view! { <span class=if palette.is_some() { "badge" } else { "badge neutral" } style=palette.map(accent_style)>{children()}</span> }
+pub fn Badge(#[prop(optional)] palette: Option<&'static str>, #[prop(optional)] round: bool, children: Children) -> impl IntoView {
+    let class = match (palette.is_some(), round) {
+        (true, true) => "badge round",
+        (true, false) => "badge",
+        (false, true) => "badge neutral round",
+        (false, false) => "badge neutral",
+    };
+    view! { <span class=class style=palette.map(accent_style)>{children()}</span> }
 }
 
 /// Pick one option from a few, shown as a segmented pill row.

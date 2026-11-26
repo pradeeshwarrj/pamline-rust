@@ -56,6 +56,9 @@ const RUST_JOBS: &[&str] = &[
     "diagnostics",
     "scan",
     "scan_results",
+    "std_state",
+    "std_plan",
+    "standardize",
 ];
 
 /// Does this job go to the Rust engine (when there is one)?
@@ -336,11 +339,11 @@ mod tests {
 
     #[test]
     fn rust_jobs_are_routed() {
-        for j in ["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results"] {
+        for j in ["inspect", "config_save", "config_save_as", "project_create", "example_project", "diagnostics", "scan", "scan_results", "std_state", "std_plan", "standardize"] {
             assert!(is_rust_job(j), "{j} should go to the Rust engine");
         }
         // everything else still runs in R
-        for j in ["standardize", "std_plan", "filter", "detect", "process", "soundscape", "report", "model_download", "unknown", ""] {
+        for j in ["filter", "detect", "process", "soundscape", "report", "model_download", "unknown", ""] {
             assert!(!is_rust_job(j), "{j} should stay in R");
         }
     }

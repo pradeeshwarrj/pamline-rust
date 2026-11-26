@@ -4,8 +4,10 @@
 
 mod components;
 mod i18n;
+mod longjob;
 mod project;
 mod scan;
+mod standardize;
 mod state;
 mod tauri;
 
@@ -16,7 +18,7 @@ use leptos::prelude::*;
 use state::Store;
 
 /// The steps whose screens are ported; the others show "coming soon".
-const READY: [&str; 2] = ["project", "scan"];
+const READY: [&str; 3] = ["project", "standardize", "scan"];
 
 /// The workflow A steps in order, with their pastel (see `config/stages.ts`).
 const STEPS: [(&str, &str); 9] = [
@@ -115,6 +117,7 @@ fn App() -> impl IntoView {
                         }
                         match store.screen.get() {
                             "project" => view! { <project::ProjectScreen store=store /> }.into_any(),
+                            "standardize" => view! { <standardize::StandardizeScreen store=store /> }.into_any(),
                             "scan" => view! { <scan::ScanScreen store=store /> }.into_any(),
                             _ => view! { <components::Card title=t("common.notBuiltTitle")><p class="muted">{t("common.notBuiltBody")}</p></components::Card> }.into_any(),
                         }
